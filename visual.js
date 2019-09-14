@@ -14,10 +14,13 @@ document.getElementById('inputFile').onchange = function () {
             /*for (var i = 0; i < 24; i++) {
                 v.AddBubble(data[i]);
             }*/
-            setInterval(() => {
+            v.timer=setInterval(() => {
                 //每秒一组数据
                 if(v.frame%60==0){
                 //if(true){//调试用
+                    if(!data[v.line]){
+                        clearInterval(v.timer);
+                    }
                     //把不是0的复制到from里面
                     v.from=[];
                     /*for(var i=0;i<v.to.length;i++){
@@ -69,17 +72,18 @@ document.getElementById('inputFile').onchange = function () {
                     //如果to里没有 补0 并复制到bubbles中
                     v.bubbles=[];
                     for(var i=0;i<v.from.length;i++){
+                        var bubble = {
+                            id: v.from[i].id,
+                            x: v.from[i].x,
+                            y: v.from[i].y,
+                            r: 0,
+                            c: v.from[i].c
+                        };
                         if(!v.to.find(e=>e.id==v.from[i].id)){
-                            var bubble = {
-                                id: v.from[i].id,
-                                x: v.from[i].x,
-                                y: v.from[i].y,
-                                r: 0,
-                                c: v.from[i].c
-                            };
                             v.to.push(bubble);
                         }
-                        v.bubbles.push(v.from[i]);
+                        //v.bubbles.push(v.from[i]);
+                        v.bubbles.push(bubble);
                     }
                     v.from.sort();
                     v.to.sort();
@@ -89,7 +93,7 @@ document.getElementById('inputFile').onchange = function () {
                 v.Update();
                 v.Draw();
                 v.frame++;
-            }, 1000/10);
+            }, 1000/60);
         } catch (error) {
             alert(error);
         }
@@ -135,14 +139,17 @@ class Visual {
     }
     //更新气泡位置数据
     Update() {
-        var distance, t, dx, dy, interp;
+        var distance, t, dx, dy, interp, area;
         if(this.camera.z<4){
             //this.camera.z*=1.05;
         }
         interp=v.frame%60/60;
+        area=0;
         for (var i = 0; i < this.bubbles.length; i++) {
             //更新气泡大小
             this.bubbles[i].r=(1-interp)*this.from[i].r+interp*this.to[i].r;
+            //计算气泡总面积
+            area+=this.bubbles[i].r*this.bubbles[i].r;
             //聚集气泡
             if((t=this.camera.x-0.4*config.width/this.camera.z-this.bubbles[i].x)>0){
                 this.bubbles[i].x+=this.elasticity*t;
@@ -168,6 +175,8 @@ class Visual {
                 }
             }
         }
+        area*=Math.PI;
+        this.camera.z=Math.sqrt(config.width*config.height/area*0.75);
     }
     //绘制气泡
     Draw() {
@@ -182,13 +191,15 @@ class Visual {
             this.ctx.closePath();
             this.ctx.fill();
             this.ctx.font="12px 微软雅黑";
-            this.ctx.textAlign="left";
-            this.ctx.fillStyle="#FF0000";
-            this.ctx.fillText("frame "+this.frame,0,12);
             this.ctx.font=parseInt(12/this.ctx.measureText(this.bubbles[i].id).width*dispr*1.6)+'px 微软雅黑';
             this.ctx.fillStyle="#000000";
             this.ctx.textAlign="center";
             this.ctx.fillText(this.bubbles[i].id,dispx,dispy);
         }
+        this.ctx.font="12px 微软雅黑";
+        this.ctx.textAlign="left";
+        this.ctx.fillStyle="#FF0000";
+        this.ctx.fillText("frame "+this.frame,0,12);
+        this.ctx.fillText(this.from[0].r,0,24);
     }
 }
