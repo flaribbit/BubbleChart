@@ -40,12 +40,12 @@ document.getElementById('inputFile').onchange = function () {
                         var elem=v.bubbles.find(e=>e.id==data[v.line].name);
                         //如果之前有这个元素
                         if(elem){
-                            console.log("之前有这个元素");
+                            //console.log("之前有这个元素");
                             var bubble = {
                                 id: elem.id,
                                 x: elem.x,
                                 y: elem.y,
-                                r: data[v.line].value,
+                                r: parseFloat(data[v.line].value),
                                 c: elem.c
                             };
                             v.to.push(bubble);
@@ -55,29 +55,36 @@ document.getElementById('inputFile').onchange = function () {
                         //v.to.push(data[v.line]);
                         //v.line++;
                         v.line++;
+                        if(v.line>=data.length){
+                            break;
+                        }
                     }
+                    //排序 准备计算排名
+                    v.to.sort(v.SortByValue);
                     //如果from里没有 补0
                     for(var i=0;i<v.to.length;i++){
+                        v.to[i].rank=i+1;
                         if(!v.from.find(e=>e.id==v.to[i].id)){
                             var bubble = {
                                 id: v.to[i].id,
                                 x: v.to[i].x,
                                 y: v.to[i].y,
                                 r: 0,
-                                c: v.to[i].c
+                                c: v.to[i].c,
                             };
                             v.from.push(bubble);
                         }
                     }
                     //如果to里没有 补0 并复制到bubbles中
                     v.bubbles=[];
+                    v.from.sort(v.SortById);
                     for(var i=0;i<v.from.length;i++){
                         var bubble = {
                             id: v.from[i].id,
                             x: v.from[i].x,
                             y: v.from[i].y,
                             r: 0,
-                            c: v.from[i].c
+                            c: v.from[i].c,
                         };
                         if(!v.to.find(e=>e.id==v.from[i].id)){
                             v.to.push(bubble);
@@ -85,15 +92,14 @@ document.getElementById('inputFile').onchange = function () {
                         //v.bubbles.push(v.from[i]);
                         v.bubbles.push(bubble);
                     }
-                    v.from.sort();
-                    v.to.sort();
+                    v.to.sort(v.SortById);
                     //console.log(v.from);
                     //console.log(v.to);
                 }
                 v.Update();
                 v.Draw();
                 v.frame++;
-            }, 1000/60);
+            }, 1000/30);
         } catch (error) {
             alert(error);
         }
@@ -117,6 +123,24 @@ class Visual {
         this.frame=60;
         this.elasticity = 0.6;
         this.scale = 1;
+    }
+    SortByValue(a,b){
+        if(a.r<b.r){
+            return 1;
+        }else if(a.r>b.r){
+            return -1;
+        }else{
+            return 0;
+        }
+    }
+    SortById(a,b){
+        if(a.id<b.id){
+            return 1;
+        }else if(a.id>b.id){
+            return -1;
+        }else{
+            return 0;
+        }
     }
     Random(lower, upper) {
         var t = Math.random();
@@ -151,14 +175,14 @@ class Visual {
             //计算气泡总面积
             area+=this.bubbles[i].r*this.bubbles[i].r;
             //聚集气泡
-            if((t=this.camera.x-0.4*config.width/this.camera.z-this.bubbles[i].x)>0){
+            if((t=this.camera.x-0.5*config.width/this.camera.z-this.bubbles[i].x+this.bubbles[i].r)>0){
                 this.bubbles[i].x+=this.elasticity*t;
-            }else if((t=this.camera.x+0.4*config.width/this.camera.z-this.bubbles[i].x)<0){
+            }else if((t=this.camera.x+0.5*config.width/this.camera.z-this.bubbles[i].x-this.bubbles[i].r)<0){
                 this.bubbles[i].x+=this.elasticity*t;
             }
-            if((t=this.camera.y-0.4*config.height/this.camera.z-this.bubbles[i].y)>0){
+            if((t=this.camera.y-0.5*config.height/this.camera.z-this.bubbles[i].y+this.bubbles[i].r)>0){
                 this.bubbles[i].y+=this.elasticity*t;
-            }else if((t=this.camera.y+0.4*config.height/this.camera.z-this.bubbles[i].y)<0){
+            }else if((t=this.camera.y+0.5*config.height/this.camera.z-this.bubbles[i].y-this.bubbles[i].r)<0){
                 this.bubbles[i].y+=this.elasticity*t;
             }
             //互相排斥
@@ -175,8 +199,7 @@ class Visual {
                 }
             }
         }
-        area*=Math.PI;
-        this.camera.z=Math.sqrt(config.width*config.height/area*0.75);
+        this.camera.z=Math.sqrt(config.width*config.height/area/6);
     }
     //绘制气泡
     Draw() {
@@ -190,16 +213,31 @@ class Visual {
             this.ctx.arc(dispx,dispy,dispr,0,Math.PI*2);
             this.ctx.closePath();
             this.ctx.fill();
+            //计算宽度
             this.ctx.font="12px 微软雅黑";
-            this.ctx.font=parseInt(12/this.ctx.measureText(this.bubbles[i].id).width*dispr*1.6)+'px 微软雅黑';
+            var font=Math.floor(12/this.ctx.measureText(this.bubbles[i].id).width*dispr*1.6);
+            var fontmax=0.6*this.bubbles[i].r*this.camera.z;
+            if(font>fontmax){
+                //限制字体大小
+                font=fontmax;
+            }
+            this.ctx.font=font+'px 微软雅黑';
             this.ctx.fillStyle="#000000";
             this.ctx.textAlign="center";
             this.ctx.fillText(this.bubbles[i].id,dispx,dispy);
+            //绘制数据
+            this.ctx.font=Math.floor(font*0.6)+'px 微软雅黑';
+            this.ctx.fillText(this.bubbles[i].r.toFixed(2),dispx,dispy+font);
+            //绘制排名
+            if(this.to[i].rank<4){
+                this.ctx.font=Math.floor(font*0.5)+'px 微软雅黑';
+                this.ctx.fillText("第"+this.to[i].rank+"位",dispx,dispy-font);
+            }
         }
-        this.ctx.font="12px 微软雅黑";
-        this.ctx.textAlign="left";
-        this.ctx.fillStyle="#FF0000";
-        this.ctx.fillText("frame "+this.frame,0,12);
-        this.ctx.fillText(this.from[0].r,0,24);
+        //this.ctx.font="12px 微软雅黑";
+        //this.ctx.textAlign="left";
+        //this.ctx.fillStyle="#FF0000";
+        //this.ctx.fillText("frame "+this.frame,0,12);
+        //this.ctx.fillText(this.from[0].r,0,24);
     }
 }
