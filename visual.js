@@ -11,22 +11,85 @@ document.getElementById('inputFile').onchange = function () {
         try {
             var data = d3.csvParse(this.result);
             v = new Visual(data);
-            for (var i = 0; i < 24; i++) {
-                v.addBubble(data[i]);
-            }
+            /*for (var i = 0; i < 24; i++) {
+                v.AddBubble(data[i]);
+            }*/
             setInterval(() => {
-                v.frame++;
-                v.Update();
-                //每秒计算6次
-                if(v.frame%10==0){
-                    
-                }
                 //每秒一组数据
                 if(v.frame%60==0){
-
+                //if(true){//调试用
+                    //把不是0的复制到from里面
+                    v.from=[];
+                    /*for(var i=0;i<v.to.length;i++){
+                        if(v.to[i].r!=0){
+                            v.from.push(v.to[i]);
+                        }
+                    }*/
+                    for(var i=0;i<v.to.length;i++){
+                        if(v.to[i].r!=0){
+                            v.from.push(v.bubbles[i]);
+                        }
+                    }
+                    //把下一组数据添加到to里面
+                    v.to=[];
+                    while(data[v.line].time==Math.floor(v.frame/60)){
+                    //while(data[v.line].time==v.frame){//调试用
+                        var elem=v.bubbles.find(e=>e.id==data[v.line].name);
+                        //如果之前有这个元素
+                        if(elem){
+                            console.log("之前有这个元素");
+                            var bubble = {
+                                id: elem.id,
+                                x: elem.x,
+                                y: elem.y,
+                                r: data[v.line].value,
+                                c: elem.c
+                            };
+                            v.to.push(bubble);
+                        }else{
+                            v.AddBubble(data[v.line]);
+                        }
+                        //v.to.push(data[v.line]);
+                        //v.line++;
+                        v.line++;
+                    }
+                    //如果from里没有 补0
+                    for(var i=0;i<v.to.length;i++){
+                        if(!v.from.find(e=>e.id==v.to[i].id)){
+                            var bubble = {
+                                id: v.to[i].id,
+                                x: v.to[i].x,
+                                y: v.to[i].y,
+                                r: 0,
+                                c: v.to[i].c
+                            };
+                            v.from.push(bubble);
+                        }
+                    }
+                    //如果to里没有 补0 并复制到bubbles中
+                    v.bubbles=[];
+                    for(var i=0;i<v.from.length;i++){
+                        if(!v.to.find(e=>e.id==v.from[i].id)){
+                            var bubble = {
+                                id: v.from[i].id,
+                                x: v.from[i].x,
+                                y: v.from[i].y,
+                                r: 0,
+                                c: v.from[i].c
+                            };
+                            v.to.push(bubble);
+                        }
+                        v.bubbles.push(v.from[i]);
+                    }
+                    v.from.sort();
+                    v.to.sort();
+                    //console.log(v.from);
+                    //console.log(v.to);
                 }
+                v.Update();
                 v.Draw();
-            }, 1000/60);
+                v.frame++;
+            }, 1000/10);
         } catch (error) {
             alert(error);
         }
@@ -37,6 +100,8 @@ class Visual {
     constructor(data) {
         console.log(data);
         this.bubbles = [];
+        this.from = [];
+        this.to = [];
         this.camera={
             x:0,
             y:0,
@@ -44,7 +109,8 @@ class Visual {
         };
         this.canvas=document.getElementById("maincanvas");
         this.ctx=this.canvas.getContext("2d");
-        this.frame=0;
+        this.line=0;
+        this.frame=60;
         this.elasticity = 0.6;
         this.scale = 1;
     }
@@ -57,7 +123,7 @@ class Visual {
         return config.colors[t];
     }
     //添加一个气泡，位置随机，颜色随机
-    addBubble(data) {
+    AddBubble(data) {
         var bubble = {
             id: data.name,
             x: this.Random(this.camera.x-0.5*this.camera.z*config.width, this.camera.x+0.5*this.camera.z*config.width),
@@ -65,15 +131,19 @@ class Visual {
             r: parseFloat(data.value),
             c: this.RandomColor(),
         };
-        this.bubbles.push(bubble);
+        this.to.push(bubble);
     }
     //更新气泡位置数据
     Update() {
-        var distance, t, dx, dy;
-        if(this.camera.z<2.2){
-            this.camera.z*=1.005;
+        var distance, t, dx, dy, interp;
+        if(this.camera.z<4){
+            //this.camera.z*=1.05;
         }
+        interp=v.frame%60/60;
         for (var i = 0; i < this.bubbles.length; i++) {
+            //更新气泡大小
+            this.bubbles[i].r=(1-interp)*this.from[i].r+interp*this.to[i].r;
+            //聚集气泡
             if((t=this.camera.x-0.4*config.width/this.camera.z-this.bubbles[i].x)>0){
                 this.bubbles[i].x+=this.elasticity*t;
             }else if((t=this.camera.x+0.4*config.width/this.camera.z-this.bubbles[i].x)<0){
@@ -111,10 +181,13 @@ class Visual {
             this.ctx.arc(dispx,dispy,dispr,0,Math.PI*2);
             this.ctx.closePath();
             this.ctx.fill();
-            this.ctx.textAlign="center";
             this.ctx.font="12px 微软雅黑";
+            this.ctx.textAlign="left";
+            this.ctx.fillStyle="#FF0000";
+            this.ctx.fillText("frame "+this.frame,0,12);
             this.ctx.font=parseInt(12/this.ctx.measureText(this.bubbles[i].id).width*dispr*1.6)+'px 微软雅黑';
             this.ctx.fillStyle="#000000";
+            this.ctx.textAlign="center";
             this.ctx.fillText(this.bubbles[i].id,dispx,dispy);
         }
     }
