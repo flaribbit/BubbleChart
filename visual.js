@@ -17,17 +17,11 @@ document.getElementById('inputFile').onchange = function () {
             v.timer=setInterval(() => {
                 //每秒一组数据
                 if(v.frame%60==0){
-                //if(true){//调试用
                     if(!data[v.line]){
                         clearInterval(v.timer);
                     }
                     //把不是0的复制到from里面
                     v.from=[];
-                    /*for(var i=0;i<v.to.length;i++){
-                        if(v.to[i].r!=0){
-                            v.from.push(v.to[i]);
-                        }
-                    }*/
                     for(var i=0;i<v.to.length;i++){
                         if(v.to[i].r!=0){
                             v.from.push(v.bubbles[i]);
@@ -36,7 +30,6 @@ document.getElementById('inputFile').onchange = function () {
                     //把下一组数据添加到to里面
                     v.to=[];
                     while(data[v.line].time==Math.floor(v.frame/60)){
-                    //while(data[v.line].time==v.frame){//调试用
                         var elem=v.bubbles.find(e=>e.id==data[v.line].name);
                         //如果之前有这个元素
                         if(elem){
@@ -52,8 +45,6 @@ document.getElementById('inputFile').onchange = function () {
                         }else{
                             v.AddBubble(data[v.line]);
                         }
-                        //v.to.push(data[v.line]);
-                        //v.line++;
                         v.line++;
                         if(v.line>=data.length){
                             break;
@@ -107,18 +98,20 @@ document.getElementById('inputFile').onchange = function () {
 }
 
 class Visual {
-    constructor(data) {
-        console.log(data);
-        this.bubbles = [];
-        this.from = [];
-        this.to = [];
+    constructor(canvas) {
+        this.data=[];
+        this.ububbles=[];
+        this.bubbles = {};
+        this.from = {};
+        this.to = {};
         this.camera={
             x:0,
             y:0,
             z:1
         };
-        this.canvas=document.getElementById("maincanvas");
+        this.canvas=document.getElementById(canvas);
         this.ctx=this.canvas.getContext("2d");
+        this.time="";
         this.line=0;
         this.frame=60;
         this.elasticity = 0.6;
@@ -152,41 +145,77 @@ class Visual {
     }
     //添加一个气泡，位置随机，颜色随机
     AddBubble(data) {
-        var bubble = {
+        let c=this.camera;
+        let bubble = {
             id: data.name,
-            x: this.Random(this.camera.x-0.5*this.camera.z*config.width, this.camera.x+0.5*this.camera.z*config.width),
-            y: this.Random(this.camera.y-0.5*this.camera.z*config.height, this.camera.y+0.5*this.camera.z*config.height),
+            x: this.Random(c.x-0.5*c.z*config.width, c.x+0.5*c.z*config.width),
+            y: this.Random(c.y-0.5*c.z*config.height, c.y+0.5*c.z*config.height),
             r: parseFloat(data.value),
             c: this.RandomColor(),
         };
         this.to.push(bubble);
     }
+    UpdateData(){
+        let id;
+        //把不是0的复制到from里面
+        let t=this.to;
+        this.from={};
+        for(id in t){
+            if(t[id].r>0){
+                this.from[id]=t[id]
+            }else{
+                //其他的数据用不到了删掉
+                delete this.bubbles[id]
+            }
+        }
+        //把下一组数据添加到to里面
+        this.to={}
+        while((t=this.data[this.line]).time==this.time){
+            this.to[t.name]=t.value;
+            this.line++;
+        }
+        //补齐from中的元素
+        for(id in this.to){
+            if(!this.from[id]){
+                this.from[id]=0;
+                this.bubbles[id]=this.AddBubble();
+            }
+        }
+        //现在的from和bubbles是完整的了
+        //补齐to中的元素并创建update和draw使用的数组
+        this.ububbles=[];
+        for(id in this.from){
+            this.ububbles.push(this.bubbles[id]);
+            if(!this.to[id]){
+                this.to[id]=0;
+            }
+        }
+        //数组排序
+        this.ububbles.sort(this.SortByValue);
+    }
     //更新气泡位置数据
     Update() {
         var distance, t, dx, dy, interp, area;
-        if(this.camera.z<4){
-            //this.camera.z*=1.05;
-        }
+        let b=[]
+        let c=this.camera
         interp=v.frame%60/60;
         area=0;
         for (var i = 0; i < this.bubbles.length; i++) {
             //更新气泡大小
             this.bubbles[i].r=(1-interp)*this.from[i].r+interp*this.to[i].r;
-            //计算气泡总面积
             area+=this.bubbles[i].r*this.bubbles[i].r;
-            //聚集气泡
-            if((t=this.camera.x-0.5*config.width/this.camera.z-this.bubbles[i].x+this.bubbles[i].r)>0){
+            if((t=c.x-0.5*config.width/c.z-this.bubbles[i].x+this.bubbles[i].r)>0){
                 this.bubbles[i].x+=this.elasticity*t;
-            }else if((t=this.camera.x+0.5*config.width/this.camera.z-this.bubbles[i].x-this.bubbles[i].r)<0){
+            }else if((t=c.x+0.5*config.width/c.z-this.bubbles[i].x-this.bubbles[i].r)<0){
                 this.bubbles[i].x+=this.elasticity*t;
             }
-            if((t=this.camera.y-0.5*config.height/this.camera.z-this.bubbles[i].y+this.bubbles[i].r)>0){
+            if((t=c.y-0.5*config.height/c.z-this.bubbles[i].y+this.bubbles[i].r)>0){
                 this.bubbles[i].y+=this.elasticity*t;
-            }else if((t=this.camera.y+0.5*config.height/this.camera.z-this.bubbles[i].y-this.bubbles[i].r)<0){
+            }else if((t=c.y+0.5*config.height/c.z-this.bubbles[i].y-this.bubbles[i].r)<0){
                 this.bubbles[i].y+=this.elasticity*t;
             }
             //互相排斥
-            for (var j = i + 1; j < this.bubbles.length; j++) {
+            for (let j = i + 1; j < this.bubbles.length; j++) {
                 dx = this.bubbles[j].x - this.bubbles[i].x;
                 dy = this.bubbles[j].y - this.bubbles[i].y;
                 distance = Math.sqrt(dx * dx + dy * dy);
@@ -199,7 +228,7 @@ class Visual {
                 }
             }
         }
-        this.camera.z=Math.sqrt(config.width*config.height/area/6);
+        c.z=Math.sqrt(config.width*config.height/area/6);
     }
     //绘制气泡
     Draw() {
